@@ -7,7 +7,7 @@ from constants import *
 
 # Create new text file if it doesn't exist
 def create_file():
-    f = open("headlines.txt", "a")
+    f = open("headlines.txt", "x")
     f.close()
 
 
@@ -28,8 +28,8 @@ def click_load_more(driver):
     ActionChains(driver).click(load_more_button).perform()
 
 # Load all headlines onto page
-def load_all_headlines(driver):
-    while True:
+def load_all_headlines(driver, count=5000):
+    for i in range(count):
         try:
             click_load_more(driver)
             sleep(1)
@@ -38,11 +38,12 @@ def load_all_headlines(driver):
 
 # Write all headlines to file
 def write_headlines(driver):
-    f = open("headlines.txt", "a")
+    f = open("headlines.txt", "a", encoding="utf-8")
     headlines = driver.find_elements(By.CLASS_NAME, HEADLINE_ID)
     for headline in headlines:
         f.write(headline.text + "\n")
     f.close()
+    print("Successfully wrote headlines to file")
 
 # Main function
 def main():
