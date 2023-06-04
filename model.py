@@ -2,15 +2,17 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+from hyperparameters import *
 
 torch.manual_seed(1337)
 
 class Head(nn.Module):
     """ A single attention head """
     def __init__(self, head_size):
-        self.q = nn.Linear(n_embed, head_size, bias=False)
-        self.k = nn.Linear(n_embed, head_size, bias=False)
-        self.v = nn.Linear(n_embed, head_size, bias=False)
+        super().__init__()
+        self.q = nn.Linear(num_embed, head_size, bias=False)
+        self.k = nn.Linear(num_embed, head_size, bias=False)
+        self.v = nn.Linear(num_embed, head_size, bias=False)
         self.register_buffer('tril', torch.tril(torch.ones(block_size, block_size)))
         self.dropout = nn.Dropout(dropout)
 
@@ -31,7 +33,7 @@ class CausalSelfAttention(nn.Module):
     def __init__(self, num_heads, head_size):
         super().__init__()
         self.heads = nn.ModuleList([Head(head_size) for _ in range(num_heads)])
-        self.proj = nn.Linear(head_size * num_heads, n_embed)
+        self.proj = nn.Linear(head_size * num_heads, num_embed)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
@@ -42,12 +44,12 @@ class CausalSelfAttention(nn.Module):
 
 class MLP(nn.Module):
     """ Linear layer for computation """
-    def __init__(self, n_embed):
+    def __init__(self, num_embed):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(n_embed, n_embed * 4),
+            nn.Linear(num_embed, num_embed * 4),
             nn.ReLU(),
-            nn.Linear(n_embed * 4, n_embed),
+            nn.Linear(num_embed * 4, num_embed),
             nn.Dropout(dropout)
         )
 
@@ -69,11 +71,11 @@ class Block(nn.Module):
         return x
 
 class GPT(nn.Module):
-    def __init__(self):
+    def __init__(self, vocab_size):
         super().__init__()
         self.token_embedding_table = nn.Embedding(vocab_size, num_embed)
         self.pos_embedding_table = nn.Embedding(block_size, num_embed)
-        self.blocks = nn.Sequential(*[Block(num_embed, num_heads) for _ in range(num_layers)])
+        self.blocks = nn.Sequential(*[Block(num_embed, num_heads) for _ in range(num_layer)])
         self.ln = nn.LayerNorm(num_embed)
         self.head = nn.Linear(num_embed, vocab_size, bias=False)
 
@@ -87,7 +89,7 @@ class GPT(nn.Module):
             if module.bias is not None:
                 module.bias.data.zero_()
     
-    def forward(self, x):
+    def forward(self, x, targets=None):
         B,T = x.shape
         token_embed = self.token_embedding_table(x)
         pos_embed = self.pos_embedding_table(torch.arange(T, device=device))
@@ -102,7 +104,7 @@ class GPT(nn.Module):
             B,T,C = logits.shape
             logits = logits.view(B*T, C)
             targets = targets.view(-1)
-            loss = F.cross_entropy(logits, targets, reduction='none')
+            loss = F.cross_entropy(logits, targets)
             
         return logits, loss
 

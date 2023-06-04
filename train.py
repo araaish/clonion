@@ -2,26 +2,21 @@ from model import *
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from hyperparameters import *
 
 torch.manual_seed(1337)
-
-# hyperparameters
-batch_size = 64
-block_size = 256
-max_iters = 5000
-eval_interval = 500
-lr = 1e-3
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-eval_iters = 200
-num_embed = 256
-num_heads = 4
-num_layer = 4
-dropout = 0.2
-# -----------------
 
 # load data
 with open('headlines.txt', 'r', encoding='utf-8') as f:
     text = f.read()
+
+chars = sorted(list(set(text)))
+vocab_size = len(chars)
+# create a mapping from characters to integers
+stoi = { ch:i for i,ch in enumerate(chars) }
+itos = { i:ch for i,ch in enumerate(chars) }
+encode = lambda s: [stoi[c] for c in s] # encoder: take a string, output a list of integers
+decode = lambda l: ''.join([itos[i] for i in l]) # decoder: take a list of integers, output a string
 
 # Train and test splits
 data = torch.tensor(encode(text), dtype=torch.long)
@@ -55,7 +50,7 @@ def estimate_loss():
 
 
 # instantiate model
-model = GPT()
+model = GPT(vocab_size)
 m = model.to(device)
 # print number of model parameters
 print(sum(p.numel() for p in model.parameters())/1e6, 'M parameters')
@@ -82,4 +77,7 @@ for i in range(max_iters):
 
 # generate some samples
 context = torch.zeros((1,1), dtype=torch.long, device=device)
-print(decode(m.generate(context, max_new_tokens=100)[0].tolist()))
+print(decode(m.generate(context, max_new_tokens=500)[0].tolist()))
+
+# save model
+torch.save(model.state_dict(), 'model_weights')
