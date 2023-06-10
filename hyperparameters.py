@@ -4,10 +4,11 @@ import torch
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 device_type = 'cuda'
-num_embed = 384
-num_heads = 6
-num_layer = 6
+num_embed = 768
+num_heads = 12
+num_layer = 12
 dropout = 0.2
+bias = True
 
 # training from scratch
 # block_size = 256
@@ -20,8 +21,8 @@ dropout = 0.2
 
 # finetuning from pretrained
 
-block_size = 256
-batch_size = 16
+block_size = 1024
+batch_size = 1
 max_iters = 500
 eval_interval = 50
 lr = 1e-4

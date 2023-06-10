@@ -1,8 +1,11 @@
 from model import *
+import tiktoken
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from hyperparameters import *
+import numpy as np
+import os
 
 torch.manual_seed(1337)
 
@@ -15,23 +18,21 @@ vocab_size = len(chars)
 # create a mapping from characters to integers
 stoi = { ch:i for i,ch in enumerate(chars) }
 itos = { i:ch for i,ch in enumerate(chars) }
-encode = lambda s: [stoi[c] for c in s] # encoder: take a string, output a list of integers
-decode = lambda l: ''.join([itos[i] for i in l]) # decoder: take a list of integers, output a string
 
-# Train and test splits
-data = torch.tensor(encode(text), dtype=torch.long)
-n = int(0.9*len(data)) # first 90% will be train, rest val
-train_data = data[:n]
-val_data = data[n:]
-
-# data loading
+# "poor man's dataloader" - karpathy
+data_dir = 'data'
+train_data = np.memmap(os.path.join(data_dir, 'train.bin'), dtype=np.uint16, mode='r')
+val_data = np.memmap(os.path.join(data_dir, 'val.bin'), dtype=np.uint16, mode='r')
 def get_batch(split):
-    # generate a small batch of data of inputs x and targets y
     data = train_data if split == 'train' else val_data
     ix = torch.randint(len(data) - block_size, (batch_size,))
-    x = torch.stack([data[i:i+block_size] for i in ix])
-    y = torch.stack([data[i+1:i+block_size+1] for i in ix])
-    x, y = x.to(device), y.to(device)
+    x = torch.stack([torch.from_numpy((data[i:i+block_size]).astype(np.int64)) for i in ix])
+    y = torch.stack([torch.from_numpy((data[i+1:i+1+block_size]).astype(np.int64)) for i in ix])
+    if device == 'cuda':
+        # pin arrays x,y, which allows us to move them to GPU asynchronously (non_blocking=True)
+        x, y = x.pin_memory().to(device, non_blocking=True), y.pin_memory().to(device, non_blocking=True)
+    else:
+        x, y = x.to(device), y.to(device)
     return x, y
 
 @torch.no_grad()
@@ -50,7 +51,11 @@ def estimate_loss():
 
 
 # instantiate model
-model = GPT(vocab_size)
+model_args = dict(n_layer=num_layer, n_head=num_heads, n_embd=num_embed, block_size=block_size,
+                  bias=bias, vocab_size=None, dropout=dropout)
+model_args['vocab_size'] = 50257 # GPT2 vocab size, can change to manual vocab size
+config = GPTConfig(**model_args)
+model = GPT(config)
 m = model.to(device)
 # print number of model parameters
 print(sum(p.numel() for p in model.parameters())/1e6, 'M parameters')
@@ -76,6 +81,9 @@ for i in range(max_iters):
     optim.step()
 
 # generate some samples
+enc = tiktoken.get_encoding("gpt2")
+encode = lambda s: enc.encode(s, allowed_special={"<|endoftext|>"})
+decode = lambda l: enc.decode(l)
 context = torch.zeros((1,1), dtype=torch.long, device=device)
 print(decode(m.generate(context, max_new_tokens=500)[0].tolist()))
 

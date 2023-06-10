@@ -4,6 +4,7 @@ import os
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.optim.lr_scheduler import ExponentialLR
 from hyperparameters import *
 import pickle
 from contextlib import nullcontext
@@ -31,23 +32,6 @@ def get_batch(split):
         x, y = x.to(device), y.to(device)
     return x, y
 
-# attempt to derive vocab_size from the dataset
-meta_path = os.path.join(data_dir, 'meta.pkl')
-meta_vocab_size = None
-if os.path.exists(meta_path):
-    with open(meta_path, 'rb') as f:
-        meta = pickle.load(f)
-    meta_vocab_size = meta['vocab_size']
-    print(f"found vocab_size = {meta_vocab_size} (inside {meta_path})")
-
-# instantiate model
-init_from = 'gpt2'
-print(f"Initializing from OpenAI GPT-2 weights: {init_from}")
-# initialize from OpenAI GPT-2 weights
-model = GPT.from_pretrained(init_from)
-
-# training loop
-
 @torch.no_grad()
 def estimate_loss():
     out = {}
@@ -63,12 +47,31 @@ def estimate_loss():
     model.train()
     return out
 
+# attempt to derive vocab_size from the dataset
+meta_path = os.path.join(data_dir, 'meta.pkl')
+meta_vocab_size = None
+if os.path.exists(meta_path):
+    with open(meta_path, 'rb') as f:
+        meta = pickle.load(f)
+    meta_vocab_size = meta['vocab_size']
+    print(f"found vocab_size = {meta_vocab_size} (inside {meta_path})")
+
+# instantiate model
+init_from = 'gpt2'
+print(f"Initializing from OpenAI GPT-2 weights: {init_from}")
+# initialize from OpenAI GPT-2 weights
+model = GPT.from_pretrained(init_from)
+# crop down the model block size if desired, using model surgery
+if block_size < model.config.block_size:
+    model.crop_block_size(block_size)
 m = model.to(device)
+
 # print number of model parameters
 print(sum(p.numel() for p in model.parameters())/1e6, 'M parameters')
 
 # create optimizer
 optim = torch.optim.Adam(model.parameters(), lr=lr)
+#scheduler = ExponentialLR(optim, gamma=0.99)
 
 # training loop
 for i in range(max_iters):
@@ -86,6 +89,7 @@ for i in range(max_iters):
     optim.zero_grad(set_to_none=True)
     loss.backward()
     optim.step()
+    #scheduler.step()
 
 # generate some samples
 context = torch.zeros((1,1), dtype=torch.long, device=device)
