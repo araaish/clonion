@@ -29,14 +29,14 @@ def click_load_more(driver):
     ActionChains(driver).click(load_more_button).perform()
 
 # Load all headlines onto page
-def load_all_headlines(driver, count=5000):
+def load_all_headlines(driver, count=100):
     for i in range(count):
         try:
             click_load_more(driver)
             sleep(1)
         except:
             break
-        print("Successfully loaded headlines")
+    print("Successfully loaded headlines")
 
 # Write all headlines to file
 def write_headlines(driver):
@@ -47,52 +47,65 @@ def write_headlines(driver):
     f.close()
     print("Successfully wrote headlines to file")
 
+# Increment date by 1 year
+def increment_date(multiplier=0):
+    start_ts = BASE_DATE + timedelta(days=multiplier*365)
+    start_date = datetime.strftime(start_ts, "%m/%d/%Y")
+    end_date = datetime.strftime(start_ts + timedelta(days=365), "%m/%d/%Y")
+    return start_date, end_date
+
+# Buffer for loading webpage
+def buffer(driver):
+    sleep(1)
+    click_load_more(driver)
+    sleep(1)
+    click_load_more(driver)
+    sleep(1)
+
+# Specify date range as filter
+def filter_by_date(driver):
+    date_range_buttons = driver.find_elements(By.CLASS_NAME, DATE_RANGE_BUTTON)
+    date_range_button = [i for i in date_range_buttons if i.text == "Specify date range"][0]
+    ActionChains(driver).click(date_range_button).perform()
+
+# Input date range
+def input_date_range(driver, start_date, end_date):
+    date_inputs = driver.find_elements(By.CLASS_NAME, "sc-1a9gghc-2.kYXNgQ")
+    start_date_input = date_inputs[0]
+    end_date_input = date_inputs[1]
+
+    start_date_input.send_keys(Keys.CONTROL + "a");
+    start_date_input.send_keys(Keys.DELETE);
+    sleep(1)
+    start_date_input.send_keys(start_date)
+    sleep(1)
+    start_date_input.send_keys(Keys.ENTER)
+    sleep(1)
+    end_date_input.send_keys(Keys.CONTROL + "a");
+    end_date_input.send_keys(Keys.DELETE);
+    sleep(1)
+    end_date_input.send_keys(end_date)
+    sleep(1)
+    end_date_input.send_keys(Keys.ENTER)
+    sleep(1)
+
 # Main function
 def main():
     create_file()
     driver = setup_driver()
     navigate_to_url(driver)
-    # load_all_headlines(driver)
-    # write_headlines(driver)
-    # driver.close()
-    click_load_more(driver)
-    sleep(2)
-    click_load_more(driver)
-    sleep(2)
-    print("clicked load more")
-    date_range_buttons = driver.find_elements(By.CLASS_NAME, DATE_RANGE_BUTTON)
-    print(len(date_range_buttons))
-    for i in date_range_buttons:
-        print(i.text)
-    date_range_button = [i for i in date_range_buttons if i.text == "Specify date range"][0]
-    print("found button")
-    ActionChains(driver).click(date_range_button).perform()
-    print("clicked button")
-    sleep(5)
-    # input date range
-    date_inputs = driver.find_elements(By.CLASS_NAME, "sc-1a9gghc-2.kYXNgQ")
-    start_date_input = date_inputs[0]
-    end_date_input = date_inputs[1]
-    start_date = datetime.strftime(BASE_DATE, "%m/%d/%Y")
-    end_timestamp  = BASE_DATE + timedelta(days=365)
-    end_date = datetime.strftime(end_timestamp, "%m/%d/%Y")
-    print(start_date)
-    print(end_date)
-    start_date_input.send_keys(Keys.CONTROL + "a");
-    start_date_input.send_keys(Keys.DELETE);
-    sleep(3)
-    start_date_input.send_keys(start_date)
-    sleep(3)
-    start_date_input.send_keys(Keys.ENTER)
-    sleep(3)
-    end_date_input.send_keys(Keys.CONTROL + "a");
-    end_date_input.send_keys(Keys.DELETE);
-    sleep(3)
-    end_date_input.send_keys(end_date)
-    sleep(3)
-    end_date_input.send_keys(Keys.ENTER)
-    print("inputted dates")
-    sleep(100)
+    buffer(driver)
+    # Load headlines for each year
+    year_diff = END_DATE.year - BASE_DATE.year
+    for mult in range(0, year_diff):
+        print("Loading headlines for year " + str(BASE_DATE.year + mult))
+        start_date, end_date = increment_date(mult)
+        filter_by_date(driver)
+        input_date_range(driver, start_date, end_date)
+        load_all_headlines(driver)
+        write_headlines(driver)
+
+    driver.close()
 
 
 main()
